@@ -1,1 +1,288 @@
+from PyQt6.QtWidgets import QApplication, QMainWindow, QFileDialog, QScrollArea, QWidget, QMessageBox, QLabel, \
+    QVBoxLayout, \
+    QPushButton, QScrollArea, QHBoxLayout, QDateEdit, QDialog, QCalendarWidget, QGraphicsView, QGraphicsPixmapItem
+from PyQt6.QtCore import QDate
+from untitled import Ui_MainWindow
+from PyQt6.QtCore import QDir, Qt
+from PyQt6.QtGui import QIcon, QPixmap, QTransform
+import sys
 import os
+import modexif
+import shutil
+
+# 注意 这里选择的父类 要和你UI文件窗体一样的类型
+# 主窗口是 QMainWindow， 表单是 QWidget， 对话框是 QDialog
+class MainWindow(QMainWindow):
+
+
+    def __init__(self):
+        super().__init__()
+        self.standard_url=None
+        self.mod_url=None
+        self.ui = Ui_MainWindow()
+        self.ui.setupUi(self)
+        self.img_urls=[]
+        self.out_put_img_files = None
+
+
+        # 使用ui文件导入定义界面类
+        self.ui.pushButton.clicked.connect(self.select_folder)
+        self.ui.pushButton_3.clicked.connect(self.select_folder_2)
+        self.ui.layout = QHBoxLayout(self.ui.centralwidget)
+        self.ui.image_layout = QVBoxLayout()
+        self.ui.image_layout.setSpacing(10)
+        self.ui.image_layout.setContentsMargins(20, 180, 43, 500)
+        self.ui.layout.addLayout(self.ui.image_layout)
+        self.ui.image_layout_2 = QVBoxLayout()
+        self.ui.view =QGraphicsView(self)
+        self.ui.image_layout_2.setSpacing(10)
+        self.ui.image_layout_2.setContentsMargins(450, 180, 43, 500)
+        self.ui.layout.addLayout(self.ui.image_layout_2)
+        self.ui.pushButton_2.clicked.connect(self.remove_left_labels)
+        self.ui.pushButton_4.clicked.connect(self.remove_right_labels)
+        self.ui.pushButton_8.clicked.connect(self.output_img)
+        self.ui.pushButton_6.clicked.connect(self.mod_img)
+        self.ui.pushButton_7.clicked.connect(self.mod_time)
+        self.img_stand_path = []
+        self.img_mod_path = []
+        self.ui.pushButton_9.clicked.connect(self.expand_img)
+        self.ui.pushButton_5.clicked.connect(self.all_mod_img)
+        self.root_size = 300
+        self.will_time = None
+        self.standard_count = 0
+        self.mod_count = 0
+        self.standard_img_count = 0
+        self.mod_img_count = 0
+
+        # 使用界面定义的控件，也是从ui里面访问
+    def select_folder(self):
+        self.remove_left_labels()
+        self.standard_count += 1
+        folder_path = QFileDialog.getExistingDirectory(self, "选择文件夹", QDir.homePath())
+        if folder_path:
+            self.load_images_from_folder(folder_path)
+
+    def load_images_from_folder(self, folder_path):
+
+        self.img_stand_path = [os.path.join(folder_path, file) for file in os.listdir(folder_path) if
+                       file.lower().endswith(('.png', '.jpg', '.jpeg', '.gif'))]
+        self.standard_img_count = len(self.img_stand_path)
+        if self.img_stand_path:
+            self.standard_count += 1
+            for image_file in self.img_stand_path:
+                self.standard_url = folder_path
+                label = QLabel()
+                pixmap = QPixmap(image_file)
+                label.setPixmap(pixmap.scaledToWidth(300))  # 缩放图片到合适的大小
+                self.ui.image_layout.addWidget(label)
+
+        else:
+            QMessageBox.information(None, '鹰眼元数据编辑器', '请确认所选文件夹存在图片')
+
+    def select_folder_2(self):
+        self.remove_right_labels()
+        self.mod_count += 1
+        folder_path = QFileDialog.getExistingDirectory(self, "选择文件夹", QDir.homePath())
+        if folder_path:
+            self.load_images_from_folder_2(folder_path)
+
+    def load_images_from_folder_2(self, folder_path):
+        self.img_mod_path = [os.path.join(folder_path, file) for file in os.listdir(folder_path) if
+                       file.lower().endswith(('.png', '.jpg', '.jpeg', '.gif'))]
+        self.mod_img_count = len(self.img_mod_path)
+        if self.img_mod_path:
+            self.mod_count += 1
+            for image_file in self.img_mod_path:
+                label_2 = QLabel()
+
+                self.mod_url = folder_path
+                pixmap = QPixmap(image_file)
+                label_2.setPixmap(pixmap.scaledToWidth(300))  # 缩放图片到合适的大小
+                self.ui.image_layout_2.addWidget(label_2)
+        else:
+            QMessageBox.information(None, '鹰眼元数据编辑器', '请确认所选文件夹存在图片')
+
+
+    def remove_left_labels(self):
+        while self.ui.image_layout.count():
+            child = self.ui.image_layout.takeAt(0)
+            if isinstance(child.widget(), QLabel):
+                child.widget().deleteLater()
+        self.standard_count -= 1
+        self.standard_img_count = 0
+    def remove_right_labels(self):
+        while self.ui.image_layout_2.count():
+            child = self.ui.image_layout_2.takeAt(0)
+            if isinstance(child.widget(), QLabel):
+                child.widget().deleteLater()
+        self.mod_count -= 1
+        self.mod_img_count = 0
+    def output_img(self):
+        if self.out_put_img_files:
+            folder_path = QFileDialog.getExistingDirectory(self, "选择文件夹", QDir.homePath())
+
+            for filename in os.listdir(self.out_put_img_files):
+                if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif')):
+                    src_file = os.path.join(self.out_put_img_files, filename)
+                    dest_file = os.path.join(folder_path, filename)
+                    shutil.copy(src_file, dest_file)
+            self.delete_folder_contents()
+            QMessageBox.information(None, '鹰眼元数据编辑器', '导出成功')
+        else:
+            QMessageBox.information(None, '鹰眼元数据编辑器', '请确认是否进行过批处理图片')
+
+
+
+    def mod_img(self):
+        if self.comfirm_img_all():
+             if self.comfirm_img_count():
+                 self.img_urls, self.out_put_img_files = modexif.modify_gps(self.standard_url, self.mod_url)
+             else:
+                QMessageBox.information(None, '鹰眼元数据编辑器', f'请确认两边图片数量是否相等，左边{self.standard_img_count}张,右边{self.mod_img_count}张')
+
+        else:
+            QMessageBox.information(None, '鹰眼元数据编辑器', '请确认两边是否导入过图片')
+
+    def showDialog(self):
+        dialog = QDateEdit(self)
+        dialog.setCalendarPopup(True)
+        dialog.dateChanged
+
+    def mod_time(self):
+        if self.comfirm_right_img():
+            date_selector = DateSelector(self)
+            if date_selector.exec():  # Show the dialog modally
+                # Handle the accepted result here if needed
+                print(f"Date selected: {date_selector.will_time}")
+            # if result == QDialog.DialogCode.Accepted:
+            #     selected_date = dialog.calendar.selectedDate()
+            #     self.date_edit.setDate(selected_date)
+            # selected_date = dialog.calendar.selectedDate()
+                self.will_time = date_selector.will_time
+                print(self.will_time)
+                self.img_urls, self.out_put_img_files = modexif.modify_time_folder(self.will_time, self.mod_url)
+        else:
+            QMessageBox.information(None, '鹰眼元数据编辑器', '请确认右侧是否导入图片')
+
+    def expand_img(self):
+        current_scale = self.ui.view.transform().m11()
+        # 计算新的缩放因子
+        new_scale = current_scale * 1.2
+        # 设置新的缩放因子
+        self.ui.view.setTransform(QTransform().scale(new_scale, new_scale))
+        # 将视图中心点设置为图片中心点
+        # self.view.centerOn(self.scene.sceneRect().center())
+
+        # 遍历layout中的所有图片并放大
+        for i in range(self.ui.image_layout.count()):
+            widget = self.ui.image_layout.itemAt(i).widget()
+            if isinstance(widget, QLabel):
+                # widget.setScale(new_scale)
+                print(widget)
+                label = widget
+        pixmap =label.pixmap()
+        resized_pixmap = pixmap.scaled(new_scale)
+        label.setPixmap(resized_pixmap)
+                # 对label进行操作
+
+
+
+    def reduce_img(self):
+        self.remove_right_labels()
+        self.remove_left_labels()
+        self.root_size = int(self.root_size*0.75)
+        for image_file in self.img_stand_path:
+            label = QLabel()
+            pixmap = QPixmap(image_file)
+            label.setPixmap(pixmap.scaledToWidth(self.root_size))  # 缩放图片到合适的大小
+            self.ui.image_layout.addWidget(label)
+        for image_file in self.img_mod_path:
+            label_2 = QLabel()
+            pixmap = QPixmap(image_file)
+            label_2.setPixmap(pixmap.scaledToWidth(self.root_size))  # 缩放图片到合适的大小
+            self.ui.image_layout_2.addWidget(label_2)
+
+    def all_mod_img(self):
+        if self.comfirm_img_all():
+            if self.comfirm_img_count():
+                self.mod_time()
+                self.img_urls, self.out_put_img_files = modexif.modify_gps(self.standard_url, self.out_put_img_files)
+            else:
+                QMessageBox.information(None, '鹰眼元数据编辑器',
+                                        f'请确认两边图片数量是否相等，左边{self.standard_img_count}张,右边{self.mod_img_count}张')
+        else:
+            QMessageBox.information(None, '鹰眼元数据编辑器', '请确认两边是否导入过图片')
+
+
+    def delete_folder_contents(self):
+        for filename in os.listdir('media'):
+            file_path = os.path.join('media', filename)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                print(f'Failed to delete {file_path}. Reason: {e}')
+    def comfirm_img_all(self):
+        if self.standard_count and self.mod_count:
+            return True
+        else:
+            return False
+
+    def comfirm_img_count(self):
+        if self.standard_img_count == self.mod_img_count:
+            return True
+        return False
+
+    def comfirm_right_img(self):
+        if self.mod_count:
+            return True
+        return False
+
+    def closeEvent(self, event) -> None:
+        reply = QMessageBox.question(self, "信息提示", "是否退出",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                     QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            event.accept()
+        else:
+            event.ignore()
+
+
+
+
+
+
+class DateSelector(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.calendar = QCalendarWidget(self)
+        layout = QVBoxLayout()
+        layout.addWidget(self.calendar)
+        self.setLayout(layout)
+        self.calendar.clicked.connect(self.date_selected)
+        self.will_time = None
+
+    def date_selected(self, date: QDate):
+        print("Selected date:", date.toString('yyyy-MM-dd'))
+        self.will_time = date.toString('yyyy-MM-dd')
+        self.accept()  # Closes the dialog and indicates that the user accepted the date
+
+    def closeEvent(self, event):
+        self.reject()  # Ensure the dialog just closes without affecting the m
+
+if os.path.exists('media'):
+    app = QApplication([])
+    mainw = MainWindow()
+    mainw.delete_folder_contents()
+    mainw.show()
+    app.exec()
+else:
+    os.mkdir('media')
+    app = QApplication([])
+    mainw = MainWindow()
+    mainw.delete_folder_contents()
+    mainw.show()
+    app.exec()
+
